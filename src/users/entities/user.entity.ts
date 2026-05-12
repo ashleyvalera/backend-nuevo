@@ -16,7 +16,7 @@ export class User {
   @Column()
   password!: string;
 
-  @Column({ default: true })
+  @Column({ name: 'is_active', default: true })
   isActive!: boolean;
 
   @CreateDateColumn({ name: 'created_at' })
