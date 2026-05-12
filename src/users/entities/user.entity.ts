@@ -2,8 +2,10 @@ import {
   Column,
   CreateDateColumn,
   Entity,
+  OneToOne,
   PrimaryGeneratedColumn,
 } from 'typeorm';
+import { Profile } from '../../profiles/entities/profile.entity';
 
 @Entity({ name: 'users' })
 export class User {
@@ -21,4 +23,7 @@ export class User {
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt!: Date;
+
+  @OneToOne(() => Profile, (profile) => profile.user)
+  profile?: Profile;
 }

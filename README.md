@@ -76,15 +76,36 @@ npm run lint
 
 ### Registro
 
+Crea un usuario (credenciales) y su perfil (datos personales) de forma atómica en una sola transacción.
+
 ```http
 POST /auth/register
 Content-Type: application/json
 
 {
   "email": "tu@correo.com",
-  "password": "secreto123"
+  "password": "secreto123",
+  "firstName": "Jesus",
+  "lastName": "Carevalo",
+  "documentType": "DNI",
+  "documentNumber": "12345678",
+  "phone": "+51987654321",
+  "birthDate": "1995-06-15"
 }
 ```
+
+Campos:
+
+| Campo             | Tipo        | Obligatorio | Validación                                            |
+|-------------------|-------------|-------------|-------------------------------------------------------|
+| `email`           | string      | sí          | email válido, único                                   |
+| `password`        | string      | sí          | 6–72 caracteres                                       |
+| `firstName`       | string      | sí          | 2–60 caracteres                                       |
+| `lastName`        | string      | sí          | 2–60 caracteres                                       |
+| `documentType`    | enum        | sí          | `DNI`, `CE`, `PASAPORTE`, `RUC`                       |
+| `documentNumber`  | string      | sí          | alfanumérico 6–20, único por `documentType`           |
+| `phone`           | string      | no          | dígitos opcionales con `+`, longitud 7–15             |
+| `birthDate`       | string      | no          | formato `YYYY-MM-DD`                                  |
 
 Respuesta `201`:
 ```json
@@ -95,8 +116,8 @@ Respuesta `201`:
 ```
 
 Errores:
-- `400` — email inválido o password con menos de 6 caracteres
-- `409` — el email ya está registrado
+- `400` — algún campo no cumple las validaciones (mensaje específico en `message`)
+- `409` — `El email ya está registrado` o `El documento ya está registrado`
 
 ### Login
 
@@ -124,6 +145,8 @@ Errores:
 
 ### Perfil (protegido)
 
+Devuelve los datos del usuario autenticado, incluyendo su perfil.
+
 ```http
 GET /auth/me
 Authorization: Bearer <accessToken>
@@ -131,7 +154,22 @@ Authorization: Bearer <accessToken>
 
 Respuesta `200`:
 ```json
-{ "id": "uuid", "email": "tu@correo.com" }
+{
+  "id": "uuid",
+  "email": "tu@correo.com",
+  "profile": {
+    "id": "uuid",
+    "userId": "uuid",
+    "firstName": "Jesus",
+    "lastName": "Carevalo",
+    "documentType": "DNI",
+    "documentNumber": "12345678",
+    "phone": "+51987654321",
+    "birthDate": "1995-06-15",
+    "createdAt": "2026-05-12T07:15:56.414Z",
+    "updatedAt": "2026-05-12T07:15:56.414Z"
+  }
+}
 ```
 
 Errores:
@@ -158,16 +196,41 @@ src/
 │   │   └── jwt-auth.guard.ts
 │   └── decorators/
 │       └── current-user.decorator.ts
-└── users/
-    ├── users.module.ts
-    ├── users.service.ts     findByEmail, findById, create
+├── users/
+│   ├── users.module.ts
+│   ├── users.service.ts        findByEmail, findById, create
+│   └── entities/
+│       └── user.entity.ts      Credenciales: id, email, password, is_active
+└── profiles/
+    ├── profiles.module.ts
+    ├── profiles.service.ts     findByUserId, findByDocument
+    ├── enums/
+    │   └── document-type.enum.ts   DNI, CE, PASAPORTE, RUC
     └── entities/
-        └── user.entity.ts   id (uuid), email, password (hash), isActive, createdAt
+        └── profile.entity.ts   Datos personales: nombres, documento, teléfono...
 ```
+
+### Modelo de datos
+
+```
+users (autenticación)              profiles (identidad)
+─────────────────────              ─────────────────────────
+id  (uuid)         ───────1:1────► user_id   (uuid, FK CASCADE)
+email      UNIQUE                  first_name
+password   (bcrypt)                last_name
+is_active                          document_type   (enum)
+created_at                         document_number
+                                   phone (nullable)
+                                   birth_date (nullable)
+                                   UNIQUE(document_type, document_number)
+```
+
+La separación responde a *single responsibility*: `users` solo guarda lo necesario para autenticar, `profiles` guarda los datos descriptivos. Esto evita exponer hashes de password al listar perfiles y permite cargar solo lo necesario en cada request.
 
 ## Notas de seguridad
 
 - Las contraseñas se almacenan **hasheadas con bcrypt** (10 rondas).
 - El `JwtStrategy` recarga el usuario desde la base de datos en cada request, así un usuario eliminado pierde el acceso aunque su token aún no haya expirado.
 - El `ValidationPipe` global rechaza propiedades no declaradas en los DTOs (`forbidNonWhitelisted: true`).
+- `POST /auth/register` crea `users` y `profiles` dentro de una **transacción** (`DataSource.transaction`): si falla la creación del perfil, el usuario tampoco se persiste.
 - Nunca commitear `.env` — usa `.env.example` como plantilla.
