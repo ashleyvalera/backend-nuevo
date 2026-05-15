@@ -13,6 +13,7 @@ import { User } from '../users/entities/user.entity';
 import { UsersService } from '../users/users.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
+import { UserRole } from '../shared/enums/user-role.enum';
 
 const BCRYPT_ROUNDS = 10;
 
@@ -70,12 +71,17 @@ export class AuthService {
       throw new UnauthorizedException('Credenciales inválidas');
     }
 
+    // Verificar si la cuenta está inactiva
+    if (!user.isActive) {
+      throw new UnauthorizedException('Tu cuenta ha sido desactivada');
+    }
+
     const matches = await bcrypt.compare(dto.password, user.password);
     if (!matches) {
       throw new UnauthorizedException('Credenciales inválidas');
     }
 
-    return this.buildAuthResponse(user.id, user.email);
+    return this.buildAuthResponse(user.id, user.email, user.role);
   }
 
   async me(userId: string) {
@@ -83,10 +89,15 @@ export class AuthService {
     return profile;
   }
 
-  private async buildAuthResponse(userId: string, email: string) {
+  private async buildAuthResponse(
+    userId: string,
+    email: string,
+    role?: UserRole,
+  ) {
     const accessToken = await this.jwtService.signAsync({
       sub: userId,
       email,
+      role: role ?? UserRole.COBRADOR,
     });
 
     return {

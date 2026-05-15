@@ -6,6 +6,7 @@ import {
   PrimaryGeneratedColumn,
 } from 'typeorm';
 import { Profile } from '../../profiles/entities/profile.entity';
+import { UserRole } from '../../shared/enums/user-role.enum';
 
 @Entity({ name: 'users' })
 export class User {
@@ -20,6 +21,13 @@ export class User {
 
   @Column({ name: 'is_active', default: true })
   isActive!: boolean;
+
+  @Column({
+    type: 'enum',
+    enum: UserRole,
+    default: UserRole.COBRADOR,
+  })
+  role!: UserRole;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt!: Date;
